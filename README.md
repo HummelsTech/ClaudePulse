@@ -4,6 +4,8 @@
 
 Claude Pulse is a HACS custom integration that exposes your Claude.ai session and weekly usage as Home Assistant sensors, updated automatically every 2 minutes.
 
+![Home Assistant card](ha-card.png)
+
 ---
 
 ## Features
@@ -60,8 +62,6 @@ Once set up, the following entities appear in Home Assistant under a single **Cl
 | `sensor.claudepulse_session_used` | Session used (same as session usage) | % |
 | `sensor.claudepulse_session_limit` | Session limit (always 100) | % |
 | `sensor.claudepulse_plan` | Subscription plan | — |
-
-![Home Assistant card](ha-card.png)
 
 > Note: exact entity IDs depend on the device name HA assigns. Find them in **Developer Tools → States** and filter by `claude_pulse`.
 
