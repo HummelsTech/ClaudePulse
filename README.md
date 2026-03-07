@@ -2,9 +2,8 @@
 
 > **Your Claude AI usage, always at a glance.**
 
-ClaudePulse is a hardware monitor that displays your Claude.ai usage statistics in real-time on an M5Stack Basic device. It uses Home Assistant as a bridge to fetch and expose your session and weekly usage data, then renders it on the M5Stack's 320×240 display via ESPHome.
-
-![ClaudePulse Display](https://placeholder.com/banner)
+ClaudePulse is a hardware monitor that displays your Claude.ai usage statistics in real-time on an M5Stack Basic device or on your Home Assistant instance.
+It uses Home Assistant as a bridge to fetch and expose your session and weekly usage data, then renders it on the M5Stack's 320×240 display via ESPHome.
 
 ---
 
@@ -182,6 +181,8 @@ Once set up, the following entities are available in HA:
 | `sensor.claude_weekly_usage_pct` | Weekly usage percentage |
 | `sensor.claude_session_reset` | Time until session resets |
 | `sensor.claude_weekly_reset` | Day and time of weekly reset |
+
+![Home Assistant Sensors](![Home Assistant card](ha-card.png))
 
 ---
 
