@@ -1,0 +1,88 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  Claude Usage Monitor — Home Assistant Package                   ║
+# ║                                                                  ║
+# ║  Installation:                                                   ║
+# ║  1. Copy claude_usage.py to /config/claude_usage.py              ║
+# ║  2. Copy this file to /config/packages/claude_usage.yaml         ║
+# ║  3. In secrets.yaml add:                                         ║
+# ║       claude_session_key: "sk-ant-..."                           ║
+# ║       claude_org_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"      ║
+# ║  4. In configuration.yaml:                                       ║
+# ║       homeassistant:                                             ║
+# ║         packages: !include_dir_named packages                    ║
+# ║  5. Restart HA                                                   ║
+# ║                                                                  ║
+# ║  GET org_id:                                                     ║
+# ║  claude.ai → DevTools (F12) → Network → look for request to      ║
+# ║  /api/organizations → copy the "uuid" of the first object        ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+command_line:
+  - sensor:
+      unique_id: claude_usage_raw
+      name: Claude Usage Raw
+      scan_interval: 120
+      json_attributes:
+        - session_pct
+        - session_used
+        - session_limit
+        - session_reset_time
+        - session_reset_countdown
+        - weekly_pct
+        - weekly_used
+        - weekly_limit
+        - weekly_reset_date
+        - weekly_reset_time
+        - weekly_reset_weekday
+        - plan
+        - fetched_at
+        - error
+      command: "python3 /config/claude_usage.py"
+      value_template: "{{ value_json.session_pct | default(0) }}"
+
+# ─── Template sensors derived ──────────────────────────────────────────────
+template:
+  - sensor:
+      - name: "Claude Session Usage Pct"
+        unique_id: claude_session_usage_pct
+        unit_of_measurement: "%"
+        icon: mdi:chart-arc
+        state: >
+          {{ state_attr('sensor.claude_usage_raw', 'session_pct') | default(0) }}
+
+      - name: "Claude Weekly Usage Pct"
+        unique_id: claude_weekly_usage_pct
+        unit_of_measurement: "%"
+        icon: mdi:chart-bar
+        state: >
+          {{ state_attr('sensor.claude_usage_raw', 'weekly_pct') | default(0) }}
+
+      - name: "Claude Session Reset"
+        unique_id: claude_session_reset
+        icon: mdi:timer-outline
+        state: >
+          {{ state_attr('sensor.claude_usage_raw', 'session_reset_countdown') | default('N/A') }}
+
+      - name: "Claude Weekly Reset"
+        unique_id: claude_weekly_reset
+        icon: mdi:calendar-clock
+        state: >
+          {% set d = state_attr('sensor.claude_usage_raw', 'weekly_reset_weekday') %}
+          {% set t = state_attr('sensor.claude_usage_raw', 'weekly_reset_time') %}
+          {{ d + ' @ ' + t if d and d != 'N/A' else 'N/A' }}
+
+# ─── Alert when session usage exceeds 80% ────────────────────────────────
+automation:
+  - id: claude_usage_high_alert
+    alias: "Claude: High Session Usage Alert"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.claude_session_usage_pct
+        above: 80
+    action:
+      - service: notify.persistent_notification
+        data:
+          title: "⚠️ Claude Usage"
+          message: >
+            You have used {{ states('sensor.claude_session_usage_pct') }}% of your session.
+            It resets in {{ states('sensor.claude_session_reset') }}.
