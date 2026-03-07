@@ -182,7 +182,7 @@ Once set up, the following entities are available in HA:
 | `sensor.claude_session_reset` | Time until session resets |
 | `sensor.claude_weekly_reset` | Day and time of weekly reset |
 
-![Home Assistant Sensors](![Home Assistant card](ha-card.png))
+![Home Assistant card](ha-card.png)
 
 ---
 
