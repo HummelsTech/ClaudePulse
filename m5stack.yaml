@@ -1,0 +1,290 @@
+################################################################################
+#  Claude Usage Monitor — ESPHome M5Stack Basic                                #
+#  Use the native Home Assistant API (no HTTP requests or tokens)              #
+################################################################################
+
+esphome:
+  name: m5stack
+  friendly_name: M5Stack
+
+esp32:
+  board: m5stack-core-esp32
+  framework:
+    type: arduino
+
+# ─── Home Assistant Connection (Native API) ─────────────────────────────────
+api:
+  encryption:
+    key: "" # Replace with your own key for encrypted communication (optional)
+ota:
+  platform: esphome
+  password: "" # Replace with your own OTA password (optional)
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "M5Stack Fallback Hotspot"
+    password: "fallback_password"
+
+captive_portal:
+logger:
+
+# ─── Sensors read directly from HA ───────────────────────────────────────────
+sensor:
+  - platform: homeassistant
+    id: claude_session_pct
+    entity_id: sensor.claude_usage_raw
+    attribute: session_pct
+    on_value:
+      then:
+        - component.update: m5_display
+
+  - platform: homeassistant
+    id: claude_weekly_pct
+    entity_id: sensor.claude_usage_raw
+    attribute: weekly_pct
+    on_value:
+      then:
+        - component.update: m5_display
+
+text_sensor:
+  - platform: homeassistant
+    id: claude_session_countdown
+    entity_id: sensor.claude_usage_raw
+    attribute: session_reset_countdown
+
+  - platform: homeassistant
+    id: claude_session_reset_time
+    entity_id: sensor.claude_usage_raw
+    attribute: session_reset_time
+
+  - platform: homeassistant
+    id: claude_weekly_reset_day
+    entity_id: sensor.claude_usage_raw
+    attribute: weekly_reset_weekday
+
+  - platform: homeassistant
+    id: claude_weekly_reset_time
+    entity_id: sensor.claude_usage_raw
+    attribute: weekly_reset_time
+
+  - platform: homeassistant
+    id: claude_fetched_at
+    entity_id: sensor.claude_usage_raw
+    attribute: fetched_at
+
+# ─── M5Stack Buttons (A=GPIO39, B=GPIO38, C=GPIO37) ──────────────────────────
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO39
+      inverted: true
+    name: "Button A"
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - component.update: m5_display   # refresh display manually
+
+  - platform: gpio
+    pin:
+      number: GPIO37
+      inverted: true
+    name: "Button C"
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - light.toggle: backlight
+
+# ─── Fuentes ──────────────────────────────────────────────────────────────────
+# ─── Fuentes (glyphs limitados para ahorrar RAM) ─────────────────────────────
+font:
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 12
+    glyphs: >-
+      ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+      0123456789.,:;@%/()-[]ñéáíóú*!_
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 15
+    glyphs: >-
+      ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+      0123456789.,:;@%/()-[]ñéáíóú*!_
+  - file: "gfonts://Roboto@700"
+    id: font_large
+    size: 30
+    glyphs: "0123456789.% "
+  - file: "gfonts://Roboto@700"
+    id: font_title
+    size: 13
+    glyphs: >-
+      ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+      0123456789.,:;@%/()-[]ñéáíóú*
+
+# ─── Colores ──────────────────────────────────────────────────────────────────
+color:
+  - id: C_BG
+    hex: "121212"
+  - id: C_CARD
+    hex: "1E1E2E"
+  - id: C_ACCENT
+    hex: "FFA800"
+  - id: C_BLUE
+    hex: "55BBFF"
+  - id: C_WHITE
+    hex: "FFFFFF"
+  - id: C_GRAY
+    hex: "AAAAAA"
+  - id: C_DIM
+    hex: "555566"
+  - id: C_GREEN
+    hex: "00E676"
+  - id: C_RED
+    hex: "FF5252"
+  - id: C_BAR_BG
+    hex: "2A2A3A"
+
+# ─── SPI + Display ILI9341 (M5Stack Basic) ───────────────────────────────────
+spi:
+  clk_pin:  GPIO18
+  mosi_pin: GPIO23
+
+display:
+  - platform: ili9xxx
+    invert_colors: False
+    model: M5STACK
+    id: m5_display
+    cs_pin:    GPIO14
+    dc_pin:    GPIO27
+    reset_pin: GPIO33
+    rotation: 0
+    update_interval: 30s
+    data_rate: 40MHz
+    color_palette: 8BIT
+    lambda: |-
+      // ── Helper: progress bar ────────────────────────────────────────
+      auto draw_bar = [&](int x, int y, int w, int h, float pct, Color fill, Color bg) {
+        pct = std::min(std::max(pct, 0.0f), 100.0f);
+        it.filled_rectangle(x, y, w, h, bg);
+        int filled = (int)(w * pct / 100.0f);
+        if (filled > 1) it.filled_rectangle(x, y, filled, h, fill);
+        it.rectangle(x, y, w, h, id(C_DIM));
+      };
+
+      // ── Helper: usage card ────────────────────────────────────────────
+      auto draw_card = [&](int y, const char* title, Color accent,
+                           float pct, const std::string& l1, const std::string& l2) {
+        it.filled_rectangle(4,   y,   312, 88, id(C_CARD));
+        it.rectangle(4,          y,   312, 88, id(C_DIM));
+        it.filled_rectangle(4,   y,   4,   88, accent);          // border color
+        it.print(16, y + 6,  id(font_title), accent,        TextAlign::TOP_LEFT, title);
+        char buf[10];
+        snprintf(buf, sizeof(buf), "%.0f%%", pct);
+        it.print(308, y + 3, id(font_large), id(C_WHITE),   TextAlign::TOP_RIGHT, buf);
+        draw_bar(16, y + 40, 288, 11, pct, accent, id(C_BAR_BG));
+        it.print(16, y + 57, id(font_small), id(C_GRAY),    TextAlign::TOP_LEFT, l1.c_str());
+        it.print(16, y + 71, id(font_small), id(C_DIM),     TextAlign::TOP_LEFT, l2.c_str());
+      };
+
+      // ── Background ─────────────────────────────────────────────────────────────
+      it.fill(id(C_BG));
+
+      // ── Header ────────────────────────────────────────────────────────────
+      it.filled_rectangle(0, 0, 320, 34, Color(0x1A1A2E));
+      it.filled_rectangle(0, 33, 320, 2, id(C_ACCENT));
+      it.print(10, 7,  id(font_title), id(C_ACCENT), TextAlign::TOP_LEFT, "*");
+      it.print(24, 7,  id(font_title), id(C_WHITE),  TextAlign::TOP_LEFT, "CLAUDE USAGE MONITOR");
+
+      // Last update time + connection dot
+      bool connected = id(claude_session_pct).has_state();
+      it.filled_circle(308, 14, 5, connected ? id(C_RED) : id(C_GREEN));
+      if (id(claude_fetched_at).has_state()) {
+        it.print(298, 7, id(font_small), id(C_GRAY),
+                 TextAlign::TOP_RIGHT, id(claude_fetched_at).state.c_str());
+      }
+
+      if (!connected) {
+        // No data yet — debug screen
+        it.print(160, 80, id(font_medium), id(C_GRAY),
+                 TextAlign::CENTER, "Waiting for HA data...");
+
+        // Debug: show state of each sensor
+        char dbg[80];
+        snprintf(dbg, sizeof(dbg), "session_pct has_state: %s",
+                 id(claude_session_pct).has_state() ? "YES" : "NO");
+        it.print(10, 110, id(font_small), id(C_DIM), TextAlign::TOP_LEFT, dbg);
+
+        snprintf(dbg, sizeof(dbg), "weekly_pct has_state: %s",
+                 id(claude_weekly_pct).has_state() ? "YES" : "NO");
+        it.print(10, 125, id(font_small), id(C_DIM), TextAlign::TOP_LEFT, dbg);
+
+        snprintf(dbg, sizeof(dbg), "fetched_at has_state: %s",
+                 id(claude_fetched_at).has_state() ? "YES" : "NO");
+        it.print(10, 140, id(font_small), id(C_DIM), TextAlign::TOP_LEFT, dbg);
+
+        // If text_sensors have state but numeric ones don't, the attribute is not numeric
+        if (id(claude_fetched_at).has_state() && !id(claude_session_pct).has_state()) {
+          it.print(160, 170, id(font_small), id(C_RED),
+                   TextAlign::TOP_CENTER, "API OK but session_pct is not numeric!");
+        }
+        return;
+      }
+
+      // ── Session Card (five_hour) ─────────────────────────────────────────
+      float sess = id(claude_session_pct).state;
+      // std::string s_l1 = (id(claude_session_countdown).has_state() && strcmp(id(claude_session_countdown).state.c_str(), "N/A") != 0 ? ("Reinicia en " + id(claude_session_countdown).state) : "Sesion no iniciada") 
+      //         + (id(claude_session_reset_time).has_state() && strcmp(id(claude_session_reset_time).state.c_str(), "N/A") != 0 ? (" @ " + id(claude_session_reset_time).state) : "");
+      std::string s_l1;
+      bool countdown_valid = id(claude_session_countdown).has_state() &&
+                            strcmp(id(claude_session_countdown).state.c_str(), "N/A") != 0;
+
+      if (countdown_valid) {
+        s_l1 = std::string("Resets on ") + id(claude_session_countdown).state;
+        if (id(claude_session_reset_time).has_state()) {
+          s_l1 += " @ " + id(claude_session_reset_time).state;
+        }
+      } else {
+        s_l1 = std::string("Session not started");
+      }
+      std::string s_l2 = "";
+      draw_card(38, "SESSION (5h)", id(C_ACCENT), sess, s_l1, s_l2);
+
+      // ── Weekly Card (seven_day) ────────────────────────────────────────
+      float week = id(claude_weekly_pct).state;
+      std::string w_l1 = "Resets on " + (id(claude_weekly_reset_day).has_state()
+                          ? id(claude_weekly_reset_day).state : "N/A") + " @ " + (id(claude_weekly_reset_time).has_state()
+                          ? id(claude_weekly_reset_time).state : "N/A");
+      std::string w_l2 = "";
+      draw_card(132, "WEEKLY (7d)", id(C_BLUE), week, w_l1, w_l2);
+
+      // ── Footer ────────────────────────────────────────────────────────────
+      it.filled_rectangle(0, 226, 320, 14, Color(0x0D0D1A));
+      it.print(160, 220, id(font_small), id(C_DIM),
+               TextAlign::TOP_CENTER, "[A] Refresh    [C] Brightness");
+
+# ─── Backlight PWM ────────────────────────────────────────────────────────────
+output:
+  - platform: ledc
+    pin: GPIO32
+    id: backlight_output
+
+light:
+  - platform: monochromatic
+    output: backlight_output
+    name: "Display Backlight"
+    id: backlight
+    restore_mode: ALWAYS_ON
+    default_transition_length: 0s
+    on_turn_off:
+      - output.set_level:
+          id: backlight_output
+          level: 25%
+    on_turn_on:
+      - output.set_level:
+          id: backlight_output
+          level: 100%
