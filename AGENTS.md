@@ -6,58 +6,99 @@ Guidance for AI coding agents (and human contributors) working on this repositor
 
 Claude Pulse is a **Home Assistant custom integration** (HACS, category `integration`) that polls the undocumented Claude.ai usage API and exposes session (5-hour) and weekly (7-day) usage limits as Home Assistant sensors.
 
-- **Language:** Python (Home Assistant integration conventions, `async`/`await` throughout)
+- **Language:** Python, fully async (Home Assistant integration conventions)
 - **Domain:** `claude_pulse`
 - **Minimum Home Assistant version:** 2024.1.0 (see `hacs.json`)
-- **No external Python requirements** — uses only Home Assistant helpers (`aiohttp` session, `DataUpdateCoordinator`)
+- **No runtime requirements** beyond Home Assistant itself (`manifest.json` → `requirements: []`)
+
+## Architecture
+
+The integration follows a pragmatic Clean Architecture, adapted to the structure Home Assistant imposes. Dependencies point inward — the domain knows nothing about HA or HTTP:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Framework layer (Home Assistant)                        │
+│   __init__.py      entry setup/unload                   │
+│   coordinator.py   DataUpdateCoordinator (thin adapter) │
+│   config_flow.py   setup / reauth / options flows       │
+│   sensor.py        declarative sensor entities          │
+├─────────────────────────────────────────────────────────┤
+│ Infrastructure layer (aiohttp only, no HA imports)      │
+│   api.py           ClaudeApiClient + exceptions         │
+├─────────────────────────────────────────────────────────┤
+│ Domain layer (pure Python, no HA, no aiohttp)           │
+│   models.py        ClaudeUsage, ResetInfo, parsing      │
+│   const.py         domain constants, endpoints, keys    │
+└─────────────────────────────────────────────────────────┘
+```
+
+Data flow per update cycle:
+
+1. `ClaudePulseCoordinator._async_update_data` asks `ClaudeApiClient.async_get_usage()` for the raw payload.
+2. The client tries endpoints in fallback order: `/api/organizations/{org_id}/usage` → `/api/usage` → `/api/account/usage`. First HTTP 200 wins. HTTP 401/403 raises `ClaudeAuthError`; total failure raises `ClaudeApiError`.
+3. The coordinator translates exceptions: `ClaudeAuthError` → `ConfigEntryAuthFailed` (triggers HA's reauth flow), `ClaudeApiError` → `UpdateFailed` (HA retries).
+4. `ClaudeUsage.from_payload(raw)` parses the payload into the domain model; `as_sensor_data()` flattens it into the dict the sensor platform reads.
+5. `sensor.py` declares sensors via `ClaudePulseSensorDescription` (a `SensorEntityDescription` with a `data_key` mapping into that dict). **Adding a sensor = one description entry + one key in `as_sensor_data()`.**
+
+Rules to preserve:
+
+- `models.py` must stay importable without Home Assistant or aiohttp installed.
+- `api.py` must stay importable without Home Assistant; the aiohttp session is injected by the caller.
+- Only the framework layer may import from `homeassistant.*`.
 
 ## Repository layout
 
 ```
-custom_components/claude_pulse/
-├── __init__.py          # Entry setup/unload, coordinator wiring
-├── config_flow.py       # UI setup flow + re-auth flow + options flow
-├── const.py             # Domain, config keys, API endpoints, headers, data keys
-├── coordinator.py       # DataUpdateCoordinator — fetches and parses usage data
-├── sensor.py            # 10 sensor entity descriptions + entity class
-├── manifest.json        # Integration manifest (version lives here)
-├── strings.json         # UI strings
-├── translations/en.json # English translations (must mirror strings.json)
-└── brand/               # Icon assets
-claude_usage.py          # Legacy standalone script (predates the integration)
-claude_usage.yaml        # Legacy command_line/template sensor package
-hacs.json                # HACS metadata
-.github/workflows/main.yml  # CI: HACS validation + Hassfest validation
+custom_components/claude_pulse/   # the integration (see Architecture)
+tests/
+├── conftest.py                   # MOCK_PAYLOAD, MOCK_CONFIG, custom-integration fixture
+├── test_models.py                # domain tests — pure pytest, no HA
+├── test_api.py                   # client tests — aioresponses, no HA
+├── test_config_flow.py           # setup/reauth/options flows — HA test harness
+└── test_init.py                  # entry setup, sensors, unload, reauth trigger
+claude_usage.py / claude_usage.yaml  # legacy standalone setup (predates the integration)
+hacs.json                         # HACS metadata
+pyproject.toml                    # pytest config (asyncio_mode = auto)
+requirements_test.txt             # test dependencies
+.github/workflows/main.yml        # CI: HACS + Hassfest validation, pytest
 ```
 
-## Architecture
+## Running the tests
 
-1. **`ClaudePulseCoordinator`** (`coordinator.py`) polls Claude.ai endpoints in fallback order: org-scoped usage (`/api/organizations/{org_id}/usage`) → `/api/usage` → `/api/account/usage`. First HTTP 200 wins.
-2. Auth is a single `sessionKey` cookie. HTTP 401/403 raises `ConfigEntryAuthFailed`, which triggers Home Assistant's built-in **re-auth flow** (`config_flow.py::async_step_reauth`).
-3. The API response shape is `{"five_hour": {"utilization": <int>, "resets_at": <ts>}, "seven_day": {...}}`. The coordinator normalizes it into a flat dict whose keys are defined in `const.py` (`KEY_*`).
-4. **`sensor.py`** declares sensors declaratively via `ClaudePulseSensorDescription` (a `SensorEntityDescription` subclass with a `data_key` field mapping to the coordinator dict). Adding a sensor = adding one description entry + a key in the coordinator output.
-5. All entities share one `DeviceInfo` (one "Claude Pulse" device per config entry). Unique IDs are `{entry_id}_{description.key}`.
+```bash
+pip install -r requirements_test.txt
+python -m pytest tests -v
+```
+
+**Windows gotcha:** `pytest-homeassistant-custom-component` pulls in Home Assistant core, which imports Unix-only modules (`fcntl`) and pins `lru-dict==1.3.0` (no Windows cp313 wheel). The HA-dependent tests (`test_config_flow.py`, `test_init.py`) **cannot run natively on Windows**. Run the full suite in a Linux container instead:
+
+```powershell
+docker run --rm -v "${PWD}:/app" -w /app python:3.13 `
+  sh -c "pip install -r requirements_test.txt && python -m pytest tests -q"
+```
+
+Use the full `python:3.13` image, not `-slim` — `lru-dict==1.3.0` has no cp313 wheel and must be compiled, so the image needs `gcc`.
+
+`test_models.py` and `test_api.py` are framework-free and run anywhere with `pytest`, `pytest-asyncio`, `aiohttp`, and `aioresponses`.
 
 ## Conventions and gotchas
 
-- **Conventional commits** (`fix:`, `feat:`, `docs:`, ...). No AI attribution lines in commits.
-- **Version bumps** go in `custom_components/claude_pulse/manifest.json` (`version` field) and should be tagged for releases (HACS reads GitHub releases/tags).
+- **Conventional commits** (`fix:`, `feat:`, `docs:`, `test:`, `refactor:`...). No AI attribution lines in commits.
+- **All documentation and code comments in English.**
+- **Version bumps** go in `custom_components/claude_pulse/manifest.json` (`version` field); releases are tagged on GitHub (HACS reads releases/tags).
 - `strings.json` and `translations/en.json` must stay in sync — Hassfest validates this.
-- The Claude.ai usage API is **undocumented and unofficial**; headers in `const.py` (`CLAUDE_HEADERS`) mimic a browser request and matter — don't strip them.
-- Timestamps from the API may be ISO strings **or** epoch (seconds or milliseconds); `coordinator.py::_parse_timestamp` handles all three.
-- The `plan` sensor value is currently hardcoded to `"Pro"` in `coordinator.py` — the usage endpoints don't return plan info.
-- Don't add blocking I/O — everything runs in the event loop using Home Assistant's shared `aiohttp` client session.
+- The Claude.ai usage API is **undocumented and unofficial**; the headers in `const.py` (`CLAUDE_HEADERS`) mimic a browser request and matter — don't strip them.
+- API timestamps may be ISO strings **or** epoch seconds **or** epoch milliseconds; `models.py::parse_reset_timestamp` handles all three (`> 1e10` heuristic for milliseconds).
+- The `plan` sensor is hardcoded to `"Pro"` in `models.py` — the usage endpoints don't return plan info.
+- No blocking I/O anywhere — everything runs in the event loop with the shared aiohttp session.
+- `ResetInfo` time/weekday strings are rendered in the **local timezone** (`astimezone()`); tests compute expected values the same way to stay timezone-independent.
 
-## Validation / CI
+## CI
 
-There is no unit test suite. CI (`.github/workflows/main.yml`) runs on every push and PR:
+`.github/workflows/main.yml` runs on every push and PR:
 
-- **HACS action** (`hacs/action`, category `integration`)
-- **Hassfest** (`home-assistant/actions/hassfest`)
+1. **HACS validation** (`hacs/action`, category `integration`)
+2. **Hassfest validation** (`home-assistant/actions/hassfest`)
+3. **pytest** (Python 3.13 on ubuntu-latest, installs `requirements_test.txt`)
 
-Any change to `manifest.json`, `strings.json`, translations, or repository structure must keep both green.
-
-## Documentation rules
-
-- All documentation (README, code comments, docstrings) is written **in English**.
-- `README.md` is user-facing: keep the HACS *"Add to My Home Assistant"* badge, installation steps, credential instructions, and the sensor table accurate when behavior changes.
+Any change must keep all three green.
