@@ -10,9 +10,11 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import ClaudeApiClient, ClaudeApiError, ClaudeAuthError
 from .const import (
+    CONF_FABLE_QUOTA,
     CONF_ORG_ID,
     CONF_SESSION_KEY,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_FABLE_QUOTA,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     MIN_UPDATE_INTERVAL,
@@ -27,6 +29,7 @@ STEP_USER_SCHEMA = vol.Schema(
         vol.Optional(CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL): vol.All(
             int, vol.Range(min=MIN_UPDATE_INTERVAL)
         ),
+        vol.Optional(CONF_FABLE_QUOTA, default=DEFAULT_FABLE_QUOTA): bool,
     }
 )
 
@@ -177,6 +180,14 @@ class ClaudePulseOptionsFlow(config_entries.OptionsFlow):
                         )
                     },
                 ): vol.All(int, vol.Range(min=MIN_UPDATE_INTERVAL)),
+                vol.Optional(
+                    CONF_FABLE_QUOTA,
+                    description={
+                        "suggested_value": current.get(
+                            CONF_FABLE_QUOTA, DEFAULT_FABLE_QUOTA
+                        )
+                    },
+                ): bool,
             }
         )
 

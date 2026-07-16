@@ -17,10 +17,11 @@ Claude Pulse is a [Home Assistant](https://www.home-assistant.io/) custom integr
 
 - 📊 **Session usage** — percentage of your 5-hour window, plus a live countdown to the next reset
 - 📅 **Weekly usage** — percentage of your 7-day window, plus reset day and time
+- 📖 **Fable quota** — optional weekly usage sensor for the Fable model, toggleable in the options (on by default, safe to disable if the quota changes)
 - 🔄 **Auto-refresh** — polls Claude.ai every 2 minutes by default (configurable, 30s minimum)
 - 🔐 **Built-in re-authentication** — Home Assistant notifies you when your session key expires and guides you through renewing it
 - 🧩 **Fully UI-based setup** — config flow with live credential validation, no YAML required
-- 🛰️ **10 sensors** — every data point exposed as an individual Home Assistant entity, grouped under one device
+- 🛰️ **Individual sensors** — every data point exposed as its own Home Assistant entity, grouped under one device
 
 ---
 
@@ -82,8 +83,12 @@ All entities are grouped under a single **Claude Pulse** device:
 | `sensor.claude_pulse_session_used` | Session used (alias of session usage) | % |
 | `sensor.claude_pulse_session_limit` | Session limit (always 100) | % |
 | `sensor.claude_pulse_plan` | Subscription plan (diagnostic) | — |
+| `sensor.claude_pulse_fable_usage` | Fable model usage (weekly) — only when the Fable quota option is enabled | % |
+| `sensor.claude_pulse_fable_reset` | Fable reset summary (e.g. `Friday @ 03:45 AM`) — only when the Fable quota option is enabled | — |
 
 > Exact entity IDs may vary depending on the device name Home Assistant assigns. Find yours in **Developer Tools → States** filtering by `claude_pulse`.
+>
+> The **Fable** sensors are created only while the *Enable Fable quota tracking* option is on. The Fable quota is an unofficial, recently added component of the usage API and may change or disappear — if it does, turn the option off to remove the sensors. When your account exposes no Fable quota, the sensors report `unavailable`.
 
 ---
 
@@ -118,6 +123,7 @@ After setup, click **Configure** on the integration to change:
 | Session Key | Your `sessionKey` cookie from claude.ai | — |
 | Organization ID | Your Claude organization UUID | — |
 | Update interval | Polling frequency in seconds (minimum 30) | 120 |
+| Enable Fable quota tracking | Expose the Fable model weekly quota as sensors (may change/disappear) | Enabled |
 
 ---
 

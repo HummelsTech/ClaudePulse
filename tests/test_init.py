@@ -16,9 +16,11 @@ from .conftest import MOCK_CONFIG, MOCK_PAYLOAD
 GET_USAGE = "custom_components.claude_pulse.api.ClaudeApiClient.async_get_usage"
 
 
-async def _setup_entry(hass: HomeAssistant) -> MockConfigEntry:
+async def _setup_entry(
+    hass: HomeAssistant, data: dict | None = None
+) -> MockConfigEntry:
     entry = MockConfigEntry(
-        domain=DOMAIN, data=MOCK_CONFIG, unique_id=MOCK_CONFIG["org_id"]
+        domain=DOMAIN, data=data or MOCK_CONFIG, unique_id=MOCK_CONFIG["org_id"]
     )
     entry.add_to_hass(hass)
     with patch(GET_USAGE, return_value=MOCK_PAYLOAD):
@@ -49,6 +51,31 @@ async def test_setup_creates_all_sensors(hass: HomeAssistant) -> None:
             "sensor", DOMAIN, f"{entry.entry_id}_{key}"
         )
         assert entity_id is not None, f"missing sensor for {key}"
+
+
+async def test_fable_sensors_created_by_default(hass: HomeAssistant) -> None:
+    entry = await _setup_entry(hass)
+    registry = er.async_get(hass)
+    for key in ("fable_pct", "fable_reset"):
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_{key}"
+        )
+        assert entity_id is not None, f"missing sensor for {key}"
+
+
+async def test_fable_sensors_omitted_when_disabled(hass: HomeAssistant) -> None:
+    entry = await _setup_entry(hass, data={**MOCK_CONFIG, "fable_quota": False})
+    registry = er.async_get(hass)
+    for key in ("fable_pct", "fable_reset"):
+        entity_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_{key}"
+        )
+        assert entity_id is None, f"unexpected sensor for {key}"
+    # Non-fable sensors are still present.
+    assert (
+        registry.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_session_pct")
+        is not None
+    )
 
 
 async def test_sensor_values(hass: HomeAssistant) -> None:

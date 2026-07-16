@@ -7,10 +7,15 @@ from custom_components.claude_pulse.models import (
     NOT_AVAILABLE,
     ClaudeUsage,
     ResetInfo,
+    extract_fable,
     parse_reset_timestamp,
 )
 
-from .conftest import MOCK_PAYLOAD
+from .conftest import (
+    MOCK_PAYLOAD,
+    MOCK_PAYLOAD_FABLE_FLAT,
+    MOCK_PAYLOAD_FABLE_LIMITS,
+)
 
 NOW = datetime(2026, 6, 10, 15, 30, 0, tzinfo=timezone.utc)
 
@@ -98,3 +103,84 @@ class TestClaudeUsage:
     def test_as_sensor_data_weekly_reset_unknown(self):
         data = ClaudeUsage.from_payload({}).as_sensor_data()
         assert data["weekly_reset"] == NOT_AVAILABLE
+
+
+class TestExtractFable:
+    def test_limits_array_format(self):
+        pct, resets_at = extract_fable(MOCK_PAYLOAD_FABLE_LIMITS)
+        assert pct == 63.0
+        assert resets_at == "2026-06-12T03:45:00Z"
+
+    def test_flat_key_format(self):
+        pct, resets_at = extract_fable(MOCK_PAYLOAD_FABLE_FLAT)
+        assert pct == 63.0
+        assert resets_at == "2026-06-12T03:45:00Z"
+
+    def test_display_name_match_is_case_insensitive(self):
+        payload = {
+            "limits": [
+                {
+                    "kind": "weekly_scoped",
+                    "percent": 12.0,
+                    "resets_at": "2026-06-12T03:45:00Z",
+                    "scope": {"model": {"id": None, "display_name": "FABLE"}},
+                }
+            ]
+        }
+        pct, _ = extract_fable(payload)
+        assert pct == 12.0
+
+    def test_alternate_flat_key(self):
+        payload = {"fable_weekly": {"utilization": 7, "resets_at": None}}
+        pct, resets_at = extract_fable(payload)
+        assert pct == 7.0
+        assert resets_at is None
+
+    def test_absent_returns_none(self):
+        assert extract_fable(MOCK_PAYLOAD) == (None, None)
+        assert extract_fable({}) == (None, None)
+
+    def test_null_and_malformed_do_not_crash(self):
+        assert extract_fable({"limits": None}) == (None, None)
+        assert extract_fable({"limits": [None, "x", {}]}) == (None, None)
+        assert extract_fable({"seven_day_fable": None}) == (None, None)
+        # Scoped entry for a different model must be ignored.
+        payload = {
+            "limits": [
+                {
+                    "kind": "weekly_scoped",
+                    "percent": 99.0,
+                    "resets_at": None,
+                    "scope": {"model": {"display_name": "Opus"}},
+                }
+            ]
+        }
+        assert extract_fable(payload) == (None, None)
+
+
+class TestClaudeUsageFable:
+    def test_from_payload_limits(self):
+        usage = ClaudeUsage.from_payload(MOCK_PAYLOAD_FABLE_LIMITS, now=NOW)
+        assert usage.fable_pct == 63.0
+        assert usage.fable_reset.is_known
+
+    def test_from_payload_flat(self):
+        usage = ClaudeUsage.from_payload(MOCK_PAYLOAD_FABLE_FLAT, now=NOW)
+        assert usage.fable_pct == 63.0
+
+    def test_from_payload_absent_keeps_none(self):
+        usage = ClaudeUsage.from_payload(MOCK_PAYLOAD, now=NOW)
+        assert usage.fable_pct is None
+        assert not usage.fable_reset.is_known
+
+    def test_as_sensor_data_fable_present(self):
+        data = ClaudeUsage.from_payload(
+            MOCK_PAYLOAD_FABLE_LIMITS, now=NOW
+        ).as_sensor_data()
+        assert data["fable_pct"] == 63.0
+        assert data["fable_reset"] != NOT_AVAILABLE
+
+    def test_as_sensor_data_fable_absent(self):
+        data = ClaudeUsage.from_payload(MOCK_PAYLOAD, now=NOW).as_sensor_data()
+        assert data["fable_pct"] is None
+        assert data["fable_reset"] == NOT_AVAILABLE

@@ -30,7 +30,8 @@ async def test_user_flow_success(hass: HomeAssistant) -> None:
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["title"] == "ClaudePulse"
-    assert result["data"] == MOCK_CONFIG
+    # The fable_quota toggle defaults to True and is injected by the schema.
+    assert result["data"] == {**MOCK_CONFIG, "fable_quota": True}
 
 
 async def test_user_flow_invalid_auth(hass: HomeAssistant) -> None:
