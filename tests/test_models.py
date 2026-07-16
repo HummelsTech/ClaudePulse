@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from custom_components.claude_pulse.models import (
+    LOCALES,
     NOT_AVAILABLE,
     ClaudeUsage,
     ResetInfo,
@@ -67,6 +68,33 @@ class TestParseResetTimestamp:
         assert info.countdown == NOT_AVAILABLE
 
 
+class TestLocalizedResetTimestamp:
+    def test_dutch_locale(self):
+        info = parse_reset_timestamp("2026-06-10T18:00:00Z", now=NOW, language="nl")
+        expected_local = datetime(2026, 6, 10, 18, 0, tzinfo=timezone.utc).astimezone()
+        assert info.countdown == "2u 30m"
+        assert info.weekday == LOCALES["nl"]["weekdays"][expected_local.weekday()]
+        assert info.time == expected_local.strftime("%H:%M")
+
+    def test_dutch_under_one_hour(self):
+        info = parse_reset_timestamp("2026-06-10T15:59:00Z", now=NOW, language="nl")
+        assert info.countdown == "29m"
+
+    def test_region_variant_maps_to_base_language(self):
+        info = parse_reset_timestamp("2026-06-10T18:00:00Z", now=NOW, language="nl-BE")
+        assert info.countdown == "2u 30m"
+
+    def test_unknown_language_falls_back_to_english(self):
+        info = parse_reset_timestamp("2026-06-10T18:00:00Z", now=NOW, language="xx")
+        assert info.countdown == "2h 30m"
+        expected_local = datetime(2026, 6, 10, 18, 0, tzinfo=timezone.utc).astimezone()
+        assert info.weekday == LOCALES["en"]["weekdays"][expected_local.weekday()]
+
+    def test_default_stays_english(self):
+        info = parse_reset_timestamp("2026-06-10T18:00:00Z", now=NOW)
+        assert info.countdown == "2h 30m"
+
+
 class TestDetectPlan:
     def test_known_tiers(self):
         assert detect_plan({"rate_limit_tier": "default_claude_ai"}) == "Free"
@@ -108,6 +136,15 @@ class TestClaudeUsage:
     def test_from_payload_with_org(self):
         usage = ClaudeUsage.from_payload(MOCK_PAYLOAD, now=NOW, org=MOCK_ORG)
         assert usage.plan == "Max 5x"
+
+    def test_from_payload_localizes_resets(self):
+        usage = ClaudeUsage.from_payload(MOCK_PAYLOAD, now=NOW, language="nl")
+        expected_local = datetime(2026, 6, 10, 18, 0, tzinfo=timezone.utc).astimezone()
+        assert usage.session_reset.countdown == "2u 30m"
+        assert (
+            usage.session_reset.weekday
+            == LOCALES["nl"]["weekdays"][expected_local.weekday()]
+        )
 
     def test_from_empty_payload(self):
         usage = ClaudeUsage.from_payload({})
