@@ -2,6 +2,9 @@
 
 > **Monitor your Claude.ai usage limits directly from Home Assistant.**
 
+> [!NOTE]
+> This is a fork of [nikolmedo/ClaudePulse](https://github.com/nikolmedo/ClaudePulse) that adds **real plan detection**: upstream hardcodes the `Plan` sensor to "Pro" ([upstream issue #7](https://github.com/nikolmedo/ClaudePulse/issues/7)). This fork reads `rate_limit_tier` from the claude.ai organization endpoint, so Free / Pro / Max 5x / Max 20x are reported correctly. Install it by adding `HummelsTech/ClaudePulse` as a **custom repository** (type: integration) in HACS.
+
 [![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/integration)
 [![GitHub Release](https://img.shields.io/github/v/release/nikolmedo/ClaudePulse?include_prereleases)](https://github.com/nikolmedo/ClaudePulse/releases)
 [![Validation](https://github.com/nikolmedo/ClaudePulse/actions/workflows/main.yml/badge.svg)](https://github.com/nikolmedo/ClaudePulse/actions/workflows/main.yml)
