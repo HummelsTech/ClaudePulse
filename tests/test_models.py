@@ -178,6 +178,14 @@ class TestClaudeUsage:
         data = ClaudeUsage.from_payload({}).as_sensor_data()
         assert data["weekly_reset"] == NOT_AVAILABLE
 
+    def test_as_sensor_data_dutch_uses_om(self):
+        data = ClaudeUsage.from_payload(
+            MOCK_PAYLOAD, now=NOW, language="nl"
+        ).as_sensor_data()
+        assert data["weekly_reset"] == (
+            f"{data['weekly_reset_weekday']} om {data['weekly_reset_time']}"
+        )
+
 
 class TestExtractFable:
     def test_limits_array_format(self):

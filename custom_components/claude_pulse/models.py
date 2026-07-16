@@ -35,6 +35,7 @@ LOCALES = {
         "hour_unit": "h",
         "minute_unit": "m",
         "date_day_first": False,
+        "at_word": "@",
     },
     "nl": {
         "weekdays": (
@@ -49,6 +50,7 @@ LOCALES = {
         "hour_unit": "u",
         "minute_unit": "m",
         "date_day_first": True,
+        "at_word": "om",
     },
 }
 
@@ -247,6 +249,7 @@ class ClaudeUsage:
     plan: str = NOT_AVAILABLE
     fable_pct: float | None = None
     fable_reset: ResetInfo = ResetInfo()
+    language: str = "en"
 
     @classmethod
     def from_payload(
@@ -287,12 +290,14 @@ class ClaudeUsage:
             plan=detect_plan(org),
             fable_pct=fable_pct,
             fable_reset=parse_reset_timestamp(fable_resets_at, now, language),
+            language=language,
         )
 
     def as_sensor_data(self) -> dict:
         """Flatten into the dict consumed by the sensor platform."""
         weekly = self.weekly_reset
         fable = self.fable_reset
+        at = _locale(self.language)["at_word"]
         return {
             "session_pct":             self.session_pct,
             "session_used":            self.session_pct,
@@ -304,14 +309,14 @@ class ClaudeUsage:
             "weekly_reset_time":       weekly.time,
             "weekly_reset_weekday":    weekly.weekday,
             "weekly_reset":            (
-                f"{weekly.weekday} @ {weekly.time}"
+                f"{weekly.weekday} {at} {weekly.time}"
                 if weekly.is_known
                 else NOT_AVAILABLE
             ),
             "plan":       self.plan,
             "fable_pct":  self.fable_pct,
             "fable_reset": (
-                f"{fable.weekday} @ {fable.time}"
+                f"{fable.weekday} {at} {fable.time}"
                 if fable.is_known
                 else NOT_AVAILABLE
             ),
