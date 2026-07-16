@@ -1,0 +1,49 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Verbinden met Claude.ai",
+        "description": "Voer je Claude.ai-gegevens in.\n\n**Session Key:** Open DevTools (F12) → Application → Cookies → {claude_url} → kopieer de waarde van de `sessionKey`-cookie.\n\n**Organization ID:** Zoek in DevTools → Network een request naar `/api/organizations/` en kopieer de UUID uit de URL (bijv. `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`).",
+        "data": {
+          "session_key": "Session Key (waarde van de sessionKey-cookie)",
+          "org_id": "Organization ID (UUID uit /api/organizations/...)",
+          "update_interval": "Update-interval in seconden (min. 30)",
+          "fable_quota": "Fable-quotum bijhouden"
+        }
+      },
+      "reauth": {
+        "title": "Opnieuw aanmelden bij Claude Pulse",
+        "description": "Je Claude.ai-sessiesleutel is verlopen. Open DevTools (F12) → Application → Cookies → {claude_url} → kopieer de nieuwe `sessionKey`-waarde.",
+        "data": {
+          "session_key": "Nieuwe Session Key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ongeldige sessiesleutel of Organization ID — aanmelden mislukt (HTTP 401/403).",
+      "cannot_connect": "Kan claude.ai niet bereiken — controleer je netwerkverbinding en probeer het opnieuw."
+    },
+    "abort": {
+      "already_configured": "Deze Claude.ai Organization ID is al geconfigureerd.",
+      "reauth_successful": "Opnieuw aanmelden gelukt. De sensoren worden weer bijgewerkt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Claude Pulse-instellingen bijwerken",
+        "description": "Werk je Session Key, Organization ID of polling-interval bij.\n\n**Session Key:** Open DevTools (F12) → Application → Cookies → {claude_url} → kopieer de waarde van de `sessionKey`-cookie.\n\n**Organization ID:** Zoek in DevTools → Network een request naar `/api/organizations/` en kopieer de UUID uit de URL (bijv. `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`).",
+        "data": {
+          "session_key": "Session Key (waarde van de sessionKey-cookie)",
+          "org_id": "Organization ID (UUID uit /api/organizations/...)",
+          "update_interval": "Update-interval in seconden (min. 30)",
+          "fable_quota": "Fable-quotum bijhouden"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Ongeldige sessiesleutel of Organization ID — aanmelden mislukt (HTTP 401/403).",
+      "cannot_connect": "Kan claude.ai niet bereiken — controleer je netwerkverbinding en probeer het opnieuw."
+    }
+  }
+}
