@@ -45,5 +45,45 @@
       "invalid_auth": "Invalid session key or Organization ID — authentication failed (HTTP 401/403).",
       "cannot_connect": "Could not reach claude.ai — check your network connection and try again."
     }
+  },
+  "entity": {
+    "sensor": {
+      "session_usage": {
+        "name": "Session Usage"
+      },
+      "weekly_usage": {
+        "name": "Weekly Usage"
+      },
+      "session_reset_countdown": {
+        "name": "Session Reset Countdown"
+      },
+      "session_reset_time": {
+        "name": "Session Reset Time"
+      },
+      "weekly_reset": {
+        "name": "Weekly Reset"
+      },
+      "weekly_reset_weekday": {
+        "name": "Weekly Reset Weekday"
+      },
+      "weekly_reset_time": {
+        "name": "Weekly Reset Time"
+      },
+      "session_used": {
+        "name": "Session Used"
+      },
+      "session_limit": {
+        "name": "Session Limit"
+      },
+      "plan": {
+        "name": "Plan"
+      },
+      "fable_usage": {
+        "name": "Fable Usage"
+      },
+      "fable_reset": {
+        "name": "Fable Reset"
+      }
+    }
   }
 }

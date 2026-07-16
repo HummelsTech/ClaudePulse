@@ -45,5 +45,45 @@
       "invalid_auth": "Ongeldige sessiesleutel of Organization ID — aanmelden mislukt (HTTP 401/403).",
       "cannot_connect": "Kan claude.ai niet bereiken — controleer je netwerkverbinding en probeer het opnieuw."
     }
+  },
+  "entity": {
+    "sensor": {
+      "session_usage": {
+        "name": "Sessiegebruik"
+      },
+      "weekly_usage": {
+        "name": "Wekelijks gebruik"
+      },
+      "session_reset_countdown": {
+        "name": "Countdown sessie-reset"
+      },
+      "session_reset_time": {
+        "name": "Tijd sessie-reset"
+      },
+      "weekly_reset": {
+        "name": "Wekelijkse reset"
+      },
+      "weekly_reset_weekday": {
+        "name": "Weekdag wekelijkse reset"
+      },
+      "weekly_reset_time": {
+        "name": "Tijd wekelijkse reset"
+      },
+      "session_used": {
+        "name": "Sessie verbruikt"
+      },
+      "session_limit": {
+        "name": "Sessielimiet"
+      },
+      "plan": {
+        "name": "Abonnement"
+      },
+      "fable_usage": {
+        "name": "Fable-gebruik"
+      },
+      "fable_reset": {
+        "name": "Fable-reset"
+      }
+    }
   }
 }
