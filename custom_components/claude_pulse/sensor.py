@@ -31,7 +31,7 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
     ClaudePulseSensorDescription(
         key="session_pct",
         data_key="session_pct",
-        name="Session Usage",
+        translation_key="session_usage",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:chart-arc",
@@ -39,7 +39,7 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
     ClaudePulseSensorDescription(
         key="weekly_pct",
         data_key="weekly_pct",
-        name="Weekly Usage",
+        translation_key="weekly_usage",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:chart-bar",
@@ -47,37 +47,37 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
     ClaudePulseSensorDescription(
         key="session_countdown",
         data_key="session_reset_countdown",
-        name="Session Reset Countdown",
+        translation_key="session_reset_countdown",
         icon="mdi:timer-outline",
     ),
     ClaudePulseSensorDescription(
         key="session_reset_time",
         data_key="session_reset_time",
-        name="Session Reset Time",
+        translation_key="session_reset_time",
         icon="mdi:clock-outline",
     ),
     ClaudePulseSensorDescription(
         key="weekly_reset",
         data_key="weekly_reset",
-        name="Weekly Reset",
+        translation_key="weekly_reset",
         icon="mdi:calendar-clock",
     ),
     ClaudePulseSensorDescription(
         key="weekly_reset_weekday",
         data_key="weekly_reset_weekday",
-        name="Weekly Reset Weekday",
+        translation_key="weekly_reset_weekday",
         icon="mdi:calendar-week",
     ),
     ClaudePulseSensorDescription(
         key="weekly_reset_time",
         data_key="weekly_reset_time",
-        name="Weekly Reset Time",
+        translation_key="weekly_reset_time",
         icon="mdi:clock-check-outline",
     ),
     ClaudePulseSensorDescription(
         key="session_used",
         data_key="session_used",
-        name="Session Used",
+        translation_key="session_used",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:gauge",
@@ -85,7 +85,7 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
     ClaudePulseSensorDescription(
         key="session_limit",
         data_key="session_limit",
-        name="Session Limit",
+        translation_key="session_limit",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:gauge-full",
@@ -93,14 +93,14 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
     ClaudePulseSensorDescription(
         key="plan",
         data_key="plan",
-        name="Plan",
+        translation_key="plan",
         icon="mdi:card-account-details-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     ClaudePulseSensorDescription(
         key="fable_pct",
         data_key="fable_pct",
-        name="Fable Usage",
+        translation_key="fable_usage",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:book-open-variant",
@@ -108,7 +108,7 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
     ClaudePulseSensorDescription(
         key="fable_reset",
         data_key="fable_reset",
-        name="Fable Reset",
+        translation_key="fable_reset",
         icon="mdi:calendar-clock",
     ),
 )
