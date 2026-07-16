@@ -10,6 +10,14 @@ from datetime import datetime, timezone
 
 NOT_AVAILABLE = "N/A"
 
+# Model display name (case-insensitive) used to locate the Fable weekly quota
+# inside the API's ``limits[]`` array.
+FABLE_MODEL_NAME = "fable"
+
+# Flat top-level keys some accounts still expose for the Fable weekly quota,
+# tried in order after the ``limits[]`` array. See ``extract_fable``.
+FABLE_FLAT_KEYS = ("seven_day_fable", "fable_weekly", "fable_seven_day", "fable")
+
 
 @dataclass(frozen=True)
 class ResetInfo:
@@ -56,6 +64,64 @@ def parse_reset_timestamp(ts, now: datetime | None = None) -> ResetInfo:
         return ResetInfo()
 
 
+def _as_float(value) -> float | None:
+    """Coerce a numeric-ish value to float, or None if not convertible."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def extract_fable(raw: dict) -> tuple[float | None, str | None]:
+    """Extract the Fable weekly quota from the raw usage payload.
+
+    The Fable quota is undocumented and shows up in two different shapes
+    depending on the account/rollout, so this probes defensively:
+
+    1. The top-level ``limits`` array — the current source of truth on
+       migrated accounts. The Fable window is the entry with
+       ``kind == "weekly_scoped"`` whose ``scope.model.display_name`` is
+       "Fable" (case-insensitive; ``scope.model.id`` is often ``null``).
+       Utilization is exposed as ``percent`` here, not ``utilization``.
+    2. Legacy flat keys (``seven_day_fable`` and friends), each an object
+       with ``utilization`` (or ``percent``) and ``resets_at``.
+
+    Returns ``(percent, resets_at)``. ``percent`` is ``None`` when no Fable
+    quota is present so callers can render "unavailable" rather than 0%.
+    Every field may be ``null`` in the payload, so all access is guarded.
+    """
+    if not isinstance(raw, dict):
+        return (None, None)
+
+    # 1. limits[] array (current format).
+    limits = raw.get("limits")
+    if isinstance(limits, list):
+        for entry in limits:
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("kind") != "weekly_scoped":
+                continue
+            scope = entry.get("scope")
+            model = scope.get("model") if isinstance(scope, dict) else None
+            name = model.get("display_name") if isinstance(model, dict) else None
+            if not isinstance(name, str) or name.strip().lower() != FABLE_MODEL_NAME:
+                continue
+            return (_as_float(entry.get("percent")), entry.get("resets_at"))
+
+    # 2. Legacy flat keys.
+    for key in FABLE_FLAT_KEYS:
+        window = raw.get(key)
+        if isinstance(window, dict):
+            pct = _as_float(window.get("utilization"))
+            if pct is None:
+                pct = _as_float(window.get("percent"))
+            return (pct, window.get("resets_at"))
+
+    return (None, None)
+
+
 @dataclass(frozen=True)
 class ClaudeUsage:
     """A snapshot of Claude.ai usage limits."""
@@ -65,6 +131,8 @@ class ClaudeUsage:
     session_reset: ResetInfo
     weekly_reset: ResetInfo
     plan: str = "Pro"
+    fable_pct: float | None = None
+    fable_reset: ResetInfo = ResetInfo()
 
     @classmethod
     def from_payload(cls, raw: dict, now: datetime | None = None) -> ClaudeUsage:
@@ -74,19 +142,27 @@ class ClaudeUsage:
 
             {"five_hour": {"utilization": 22, "resets_at": "..."},
              "seven_day": {"utilization": 7, "resets_at": "..."}}
+
+        The optional Fable weekly quota is parsed separately by
+        :func:`extract_fable`, which handles the ``limits[]`` and legacy
+        flat-key shapes. ``fable_pct`` stays ``None`` when absent.
         """
         sess = raw.get("five_hour") or {}
         week = raw.get("seven_day") or {}
+        fable_pct, fable_resets_at = extract_fable(raw)
         return cls(
             session_pct=float(sess.get("utilization") or 0),
             weekly_pct=float(week.get("utilization") or 0),
             session_reset=parse_reset_timestamp(sess.get("resets_at"), now),
             weekly_reset=parse_reset_timestamp(week.get("resets_at"), now),
+            fable_pct=fable_pct,
+            fable_reset=parse_reset_timestamp(fable_resets_at, now),
         )
 
     def as_sensor_data(self) -> dict:
         """Flatten into the dict consumed by the sensor platform."""
         weekly = self.weekly_reset
+        fable = self.fable_reset
         return {
             "session_pct":             self.session_pct,
             "session_used":            self.session_pct,
@@ -103,5 +179,11 @@ class ClaudeUsage:
                 else NOT_AVAILABLE
             ),
             "plan":       self.plan,
+            "fable_pct":  self.fable_pct,
+            "fable_reset": (
+                f"{fable.weekday} @ {fable.time}"
+                if fable.is_known
+                else NOT_AVAILABLE
+            ),
             "fetched_at": datetime.now().strftime("%H:%M"),
         }

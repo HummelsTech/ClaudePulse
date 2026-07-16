@@ -16,7 +16,7 @@ from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_FABLE_QUOTA, DEFAULT_FABLE_QUOTA, DOMAIN
 from .coordinator import ClaudePulseCoordinator
 
 
@@ -97,7 +97,24 @@ SENSOR_DESCRIPTIONS: tuple[ClaudePulseSensorDescription, ...] = (
         icon="mdi:card-account-details-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    ClaudePulseSensorDescription(
+        key="fable_pct",
+        data_key="fable_pct",
+        name="Fable Usage",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:book-open-variant",
+    ),
+    ClaudePulseSensorDescription(
+        key="fable_reset",
+        data_key="fable_reset",
+        name="Fable Reset",
+        icon="mdi:calendar-clock",
+    ),
 )
+
+# Sensor data keys gated behind the optional Fable quota toggle.
+FABLE_DATA_KEYS = frozenset({"fable_pct", "fable_reset"})
 
 
 async def async_setup_entry(
@@ -107,9 +124,11 @@ async def async_setup_entry(
 ) -> None:
     """Set up Claude Pulse sensors from a config entry."""
     coordinator: ClaudePulseCoordinator = hass.data[DOMAIN][entry.entry_id]
+    fable_enabled = entry.data.get(CONF_FABLE_QUOTA, DEFAULT_FABLE_QUOTA)
     async_add_entities(
         ClaudePulseSensor(coordinator, entry, description)
         for description in SENSOR_DESCRIPTIONS
+        if description.data_key not in FABLE_DATA_KEYS or fable_enabled
     )
 
 

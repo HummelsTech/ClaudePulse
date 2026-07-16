@@ -6,10 +6,12 @@ DOMAIN = "claude_pulse"
 CONF_SESSION_KEY = "session_key"
 CONF_ORG_ID = "org_id"
 CONF_UPDATE_INTERVAL = "update_interval"
+CONF_FABLE_QUOTA = "fable_quota"
 
 # Defaults
 DEFAULT_UPDATE_INTERVAL = 120  # seconds
 MIN_UPDATE_INTERVAL = 30
+DEFAULT_FABLE_QUOTA = True
 
 # Claude API
 CLAUDE_BASE_URL = "https://claude.ai"
@@ -37,3 +39,5 @@ KEY_WEEKLY_RESET_TIME = "weekly_reset_time"
 KEY_SESSION_USED = "session_used"
 KEY_SESSION_LIMIT = "session_limit"
 KEY_PLAN = "plan"
+KEY_FABLE_PCT = "fable_pct"
+KEY_FABLE_RESET = "fable_reset"

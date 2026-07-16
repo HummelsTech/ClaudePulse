@@ -7,7 +7,8 @@
         "data": {
           "session_key": "Session Key (sessionKey cookie value)",
           "org_id": "Organization ID (UUID from /api/organizations/...)",
-          "update_interval": "Update interval in seconds (min 30)"
+          "update_interval": "Update interval in seconds (min 30)",
+          "fable_quota": "Enable Fable quota tracking"
         }
       },
       "reauth": {
@@ -35,7 +36,8 @@
         "data": {
           "session_key": "Session Key (sessionKey cookie value)",
           "org_id": "Organization ID (UUID from /api/organizations/...)",
-          "update_interval": "Update interval in seconds (min 30)"
+          "update_interval": "Update interval in seconds (min 30)",
+          "fable_quota": "Enable Fable quota tracking"
         }
       }
     },
