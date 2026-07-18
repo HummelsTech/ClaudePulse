@@ -44,6 +44,7 @@ class ClaudePulseCoordinator(DataUpdateCoordinator):
         )
         self._org: dict | None = None
         self._org_expires: datetime | None = None
+        self._language = hass.config.language
         interval = entry.data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)
 
         super().__init__(
@@ -70,7 +71,9 @@ class ClaudePulseCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(str(err)) from err
 
         org = await self._async_get_organization()
-        return ClaudeUsage.from_payload(raw, org=org).as_sensor_data()
+        return ClaudeUsage.from_payload(
+            raw, org=org, language=self._language
+        ).as_sensor_data()
 
     async def _async_get_organization(self) -> dict | None:
         """Return the cached organization payload, refreshing when stale.

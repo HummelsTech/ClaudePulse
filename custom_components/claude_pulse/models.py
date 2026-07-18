@@ -18,6 +18,50 @@ FABLE_MODEL_NAME = "fable"
 # tried in order after the ``limits[]`` array. See ``extract_fable``.
 FABLE_FLAT_KEYS = ("seven_day_fable", "fable_weekly", "fable_seven_day", "fable")
 
+# Locale tables for the display strings baked into sensor states (weekday
+# names, reset times, countdowns). Keys are two-letter language codes as
+# reported by ``hass.config.language``; anything unknown falls back to "en".
+LOCALES = {
+    "en": {
+        "weekdays": (
+            "Monday", "Tuesday", "Wednesday", "Thursday",
+            "Friday", "Saturday", "Sunday",
+        ),
+        "months": (
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ),
+        "clock_24h": False,
+        "hour_unit": "h",
+        "minute_unit": "m",
+        "date_day_first": False,
+        "at_word": "@",
+    },
+    "nl": {
+        "weekdays": (
+            "maandag", "dinsdag", "woensdag", "donderdag",
+            "vrijdag", "zaterdag", "zondag",
+        ),
+        "months": (
+            "jan", "feb", "mrt", "apr", "mei", "jun",
+            "jul", "aug", "sep", "okt", "nov", "dec",
+        ),
+        "clock_24h": True,
+        "hour_unit": "u",
+        "minute_unit": "m",
+        "date_day_first": True,
+        "at_word": "om",
+    },
+}
+
+
+def _locale(language: str | None) -> dict:
+    """Resolve a language code ("nl", "en-GB", ...) to a locale table."""
+    if not isinstance(language, str):
+        return LOCALES["en"]
+    return LOCALES.get(language.split("-")[0].lower(), LOCALES["en"])
+
+
 # Known ``rate_limit_tier`` values from the organization payload, mapped to
 # display names. Unknown tiers are prettified instead of dropped — see
 # ``detect_plan``.
@@ -56,11 +100,15 @@ class ResetInfo:
         return self.weekday != NOT_AVAILABLE
 
 
-def parse_reset_timestamp(ts, now: datetime | None = None) -> ResetInfo:
+def parse_reset_timestamp(
+    ts, now: datetime | None = None, language: str = "en"
+) -> ResetInfo:
     """Parse an ISO or epoch timestamp into a ResetInfo.
 
     Accepts ISO-8601 strings (with or without trailing ``Z``), epoch seconds,
     or epoch milliseconds. Returns an empty ResetInfo on any parse failure.
+    Display strings (weekday, time, countdown) are rendered in ``language``
+    per the ``LOCALES`` table, falling back to English.
     """
     if not ts:
         return ResetInfo()
@@ -76,11 +124,26 @@ def parse_reset_timestamp(ts, now: datetime | None = None) -> ResetInfo:
         hours = int(remaining // 3600)
         minutes = int((remaining % 3600) // 60)
         loc = dt.astimezone()
+        loc_table = _locale(language)
+        month = loc_table["months"][loc.month - 1]
+        hour_u, minute_u = loc_table["hour_unit"], loc_table["minute_unit"]
         return ResetInfo(
-            date=loc.strftime("%b %d"),
-            time=loc.strftime("%I:%M %p"),
-            weekday=loc.strftime("%A"),
-            countdown=f"{hours}h {minutes}m" if hours else f"{minutes}m",
+            date=(
+                f"{loc.day} {month}"
+                if loc_table["date_day_first"]
+                else f"{month} {loc.day:02d}"
+            ),
+            time=(
+                loc.strftime("%H:%M")
+                if loc_table["clock_24h"]
+                else loc.strftime("%I:%M %p")
+            ),
+            weekday=loc_table["weekdays"][loc.weekday()],
+            countdown=(
+                f"{hours}{hour_u} {minutes}{minute_u}"
+                if hours
+                else f"{minutes}{minute_u}"
+            ),
         )
     except (ValueError, OverflowError, OSError):
         return ResetInfo()
@@ -186,6 +249,7 @@ class ClaudeUsage:
     plan: str = NOT_AVAILABLE
     fable_pct: float | None = None
     fable_reset: ResetInfo = ResetInfo()
+    language: str = "en"
 
     @classmethod
     def from_payload(
@@ -193,6 +257,7 @@ class ClaudeUsage:
         raw: dict,
         now: datetime | None = None,
         org: dict | None = None,
+        language: str = "en",
     ) -> ClaudeUsage:
         """Build a ClaudeUsage from the raw claude.ai usage API payload.
 
@@ -207,7 +272,8 @@ class ClaudeUsage:
 
         ``org`` is the (optional) organization payload; the subscription plan
         is derived from it by :func:`detect_plan` and stays ``NOT_AVAILABLE``
-        when the payload is missing.
+        when the payload is missing. ``language`` localizes the display
+        strings (weekdays, times, countdowns) via the ``LOCALES`` table.
         """
         sess = raw.get("five_hour") or {}
         week = raw.get("seven_day") or {}
@@ -215,17 +281,23 @@ class ClaudeUsage:
         return cls(
             session_pct=float(sess.get("utilization") or 0),
             weekly_pct=float(week.get("utilization") or 0),
-            session_reset=parse_reset_timestamp(sess.get("resets_at"), now),
-            weekly_reset=parse_reset_timestamp(week.get("resets_at"), now),
+            session_reset=parse_reset_timestamp(
+                sess.get("resets_at"), now, language
+            ),
+            weekly_reset=parse_reset_timestamp(
+                week.get("resets_at"), now, language
+            ),
             plan=detect_plan(org),
             fable_pct=fable_pct,
-            fable_reset=parse_reset_timestamp(fable_resets_at, now),
+            fable_reset=parse_reset_timestamp(fable_resets_at, now, language),
+            language=language,
         )
 
     def as_sensor_data(self) -> dict:
         """Flatten into the dict consumed by the sensor platform."""
         weekly = self.weekly_reset
         fable = self.fable_reset
+        at = _locale(self.language)["at_word"]
         return {
             "session_pct":             self.session_pct,
             "session_used":            self.session_pct,
@@ -237,14 +309,14 @@ class ClaudeUsage:
             "weekly_reset_time":       weekly.time,
             "weekly_reset_weekday":    weekly.weekday,
             "weekly_reset":            (
-                f"{weekly.weekday} @ {weekly.time}"
+                f"{weekly.weekday} {at} {weekly.time}"
                 if weekly.is_known
                 else NOT_AVAILABLE
             ),
             "plan":       self.plan,
             "fable_pct":  self.fable_pct,
             "fable_reset": (
-                f"{fable.weekday} @ {fable.time}"
+                f"{fable.weekday} {at} {fable.time}"
                 if fable.is_known
                 else NOT_AVAILABLE
             ),
